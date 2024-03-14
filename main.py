@@ -93,11 +93,12 @@ class Axter:
 
         # load user state
         if sender in self.state['users']:
-            logger.debug('User is known')
+            logger.info('User is known')
             state = self.state['users'][sender]
         else:
+            logger.info('New user')
             if sender == self.state['owner']:
-                logger.debug('Owner\'s first message. setting allowed')
+                logger.info('Owner\'s first message. setting allowed')
                 self.state['users'][sender] = {
                     "username": message['from']['username'],
                     "state": "",
@@ -133,7 +134,11 @@ class Axter:
                 )
                 return
             if message['text'] == '/start':
-                logger.debug('User is unknown, adding to state...')
+                if 'username' not in message['from']:
+                    logger.info('New user without a username')
+                    self.send_message(sender, 'Users without a username are unsupported.')
+                    return
+                logger.info('User is unknown, adding to state...')
                 self.state['users'][sender] = {
                     "username": message['from']['username'],
                     "state": "",
@@ -141,6 +146,11 @@ class Axter:
                     "allowed": False
                 }
                 self.send_message(sender, 'Hello new user!\nPlease wait until my owner confirms you.')
+                # fill these with None if they don't exist or the bot fucking crashes
+                if 'first_name' not in message['from']:
+                    message['from']['first_name'] = None
+                if 'last_name' not in message['from']:
+                    message['from']['last_name'] = None
                 self.request(
                     'sendMessage',
                     method='post',
@@ -168,7 +178,7 @@ class Axter:
 
         # banned users
         if not self.state['users'][sender]['allowed']:
-            logger.debug('user is banned')
+            logger.info('user is banned')
             return
 
         match state['state']:
@@ -205,13 +215,14 @@ class Axter:
             case '/reset':
                 if not sender == self.state['owner']:
                     return
-                logger.debug('Resetting state...')
-                self.send_message(sender, 'Resetting state...')
+                logger.info('Resetting state...')
                 self.state['users'] = {}
+                self.send_message(sender, 'State reset')
+                logger.info('State reset.')
 
             case '/save':
-                self.send_message(sender, 'Saving state...')
                 self.save()
+                self.send_message(sender, 'State saved')
 
     def handle_desktop(self, message, sender, state):
         if 'text' in message:
@@ -320,10 +331,13 @@ class Axter:
             self.send_message(user_id, 'Desktop set!')
 
     def save(self):
+        logger.info('Saving state...')
         self.state['offset'] = self.offset
         json.dump(self.state, open('state.json', 'w'), indent=2)
+        logger.info('State saved.')
 
     def shutdown(self):
+        logger.info('Shutdown called')
         self.save()
         exit()
 
@@ -338,6 +352,7 @@ if __name__ == '__main__':
     bot = Axter(token, bot_state)
     # enter endless loop
     try:
+        logger.info('Starting bot')
         while True:
             bot.handle_updates()
             sleep(1)
