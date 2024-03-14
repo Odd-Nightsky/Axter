@@ -341,9 +341,6 @@ class Axter:
         self.save()
         exit()
 
-    def set_desktop(self, monitor, file_path):
-        pass
-
 
 if __name__ == '__main__':
     token = open('Token', 'r').read()
