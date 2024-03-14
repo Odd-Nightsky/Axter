@@ -1,0 +1,6 @@
+/Token
+/.venv/*
+/.idea/*
+/*.log
+/state.json
+/images/*
