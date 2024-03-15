@@ -19,7 +19,7 @@ interface = QDBusInterface('org.kde.plasmashell', '/PlasmaShell', 'org.kde.Plasm
 # logging
 logging.basicConfig()
 logger = logging.getLogger('Axter')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 
 def set_desktop(file_path, monitor):
@@ -67,6 +67,11 @@ class Axter:
             body = json.loads(e.read().decode())  # Read the body of the error response
             logger.error(body)
             raise e
+        except ConnectionResetError:
+            # this could cause recursion issues if it keeps resetting, but
+            # we're already crashing if one reset happens so
+            logger.warning('Connection reset happened.')
+            self.request(function, method, **kwargs)
 
     def send_message(self, destination, text):
         self.request('sendMessage', chat_id=destination, text=text)
@@ -190,7 +195,7 @@ class Axter:
 
     def handle_commands(self, message, sender, state):
         # handle commands
-        logger.debug(f'message contents: "{message["text"]}"')
+        logger.info(f'message contents: "{message["text"]}"')
         match message['text']:
             case '/start':
                 self.send_message(sender, 'You\'re already confirmed :3')
