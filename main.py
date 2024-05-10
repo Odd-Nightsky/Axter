@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import json
 import logging
 
@@ -39,6 +40,16 @@ class Axter:
         self.token = api_token
         self.offset = self.state['offset']
         self.accepted_types = ['image/png', 'image/jpeg', 'image/jxl']
+        self.shutdown_primed = False  # we use this later to see if we're about to shut down
+
+        # register sigterm handler so we can cleanly shut down
+        signal.signal(signal.SIGTERM, self.handle_sigterm)
+
+    def handle_sigterm(self, _signum, _stack):
+        # not sure if we need either value for our use case. _ here to make IDE not yell at me
+        # handle sigterm, so we can make sure we're not in the middle of something
+        logger.info('SIGTERM caught')
+        self.shutdown_primed = True
 
     def request(self, function, method='get', **kwargs):
         try:
@@ -83,6 +94,9 @@ class Axter:
         self.request('sendMessage', chat_id=destination, text=text)
 
     def handle_updates(self):
+        # shutdown if we've received a SIGTERM
+        if self.shutdown_primed:
+            self.shutdown()
         messages = self.request('getUpdates', offset=self.offset)
         for message in messages:
             # update offset
