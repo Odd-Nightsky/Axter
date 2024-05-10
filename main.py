@@ -3,8 +3,9 @@ import logging
 
 from time import sleep
 from urllib.request import urlopen, Request, urlretrieve
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
+from http.client import RemoteDisconnected
 from os.path import abspath
 
 from PyQt6.QtCore import QVariant, QMetaType
@@ -67,11 +68,16 @@ class Axter:
             body = json.loads(e.read().decode())  # Read the body of the error response
             logger.error(body)
             raise e
-        except ConnectionResetError:
+        except URLError:
             # this could cause recursion issues if it keeps resetting, but
             # we're already crashing if one reset happens so
+            # if not isinstance(e, URLError) and not e.errno == 104:
+            #     raise e
             logger.warning('Connection reset happened.')
-            self.request(function, method, **kwargs)
+            return self.request(function, method, **kwargs)
+        except RemoteDisconnected:
+            logger.warning('Remote closed connection.')
+            return self.request(function, method, **kwargs)
 
     def send_message(self, destination, text):
         self.request('sendMessage', chat_id=destination, text=text)
