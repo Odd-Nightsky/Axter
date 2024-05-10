@@ -73,8 +73,8 @@ class Axter:
                 headers["Content-Type"] = "application/json"
                 logger.debug(f'Sending request to {url}\nwith data {data}\nand headers{headers}'
                              .replace(self.token, '<TOKEN>'))
-                request = Request(url, data, headers)
-                response = urlopen(request)
+                _request = Request(url, data, headers)
+                response = urlopen(_request)
             response_json = json.load(response)
             return response_json['result']
         except HTTPError as e:
@@ -127,6 +127,8 @@ class Axter:
         if sender in self.state['users']:
             logger.info('User is known')
         else:
+            if 'text' not in message.keys():
+                return
             logger.info('New user')
             if sender == self.state['owner']:
                 logger.info('Owner\'s first message. setting allowed')
