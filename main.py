@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import logging
+import signal
 
 from time import sleep
 from urllib.request import urlopen, Request, urlretrieve
@@ -9,6 +10,7 @@ from urllib.parse import urlencode
 from http.client import RemoteDisconnected
 from os.path import abspath
 
+from requests import post
 from PyQt6.QtCore import QVariant, QMetaType
 from PyQt6.QtDBus import QDBusInterface, QDBus
 CallMode = QDBus.CallMode
@@ -93,6 +95,11 @@ class Axter:
     def send_message(self, destination, text):
         self.request('sendMessage', chat_id=destination, text=text)
 
+    def send_photo(self, destination, filepath, text):
+        # this will cause issues in the future but let's pray for now
+        url = f'{self.urlbase}{self.token}/sendPhoto'
+        post(url, data={'chat_id': destination, 'caption': text}, files={'photo': open(filepath, 'rb')})
+
     def handle_updates(self):
         # shutdown if we've received a SIGTERM
         if self.shutdown_primed:
@@ -119,7 +126,6 @@ class Axter:
         # load user state
         if sender in self.state['users']:
             logger.info('User is known')
-            state = self.state['users'][sender]
         else:
             logger.info('New user')
             if sender == self.state['owner']:
@@ -147,10 +153,6 @@ class Axter:
                             'command': '/reset',
                             'description': 'resets users'
                         },
-                        {
-                            'command': '/desktop',
-                            'description': 'sets desktop background'
-                        }
                     ],
                     scope={
                         'type': 'chat',
@@ -206,14 +208,14 @@ class Axter:
             logger.info('user is banned')
             return
 
-        match state['state']:
-            case '':
-                if 'text' in message:
-                    self.handle_commands(message, sender, state)
-            case '/desktop':
-                self.handle_desktop(message, sender, state)
+        if 'text' in message:
+            self.handle_commands(message, sender)
+        elif 'photo' in message or 'document' in message:
+            self.handle_desktop(message, sender)
 
-    def handle_commands(self, message, sender, state):
+    # TODO: add video file support
+    # TODO: add crop mode options
+    def handle_commands(self, message, sender):
         # handle commands
         logger.info(f'message contents: "{message["text"]}"')
         match message['text']:
@@ -229,14 +231,6 @@ class Axter:
                 self.send_message(sender, 'Shutting down...')
                 self.shutdown()
 
-            case '/desktop':
-                state['state'] = '/desktop'
-                state['stage'] = 0
-                self.send_message(
-                    sender,
-                    'Okay!\nPlease send me the image file to set as desktop.\nalternatively /cancel to stop.'
-                )
-
             case '/reset':
                 if not sender == self.state['owner']:
                     return
@@ -249,13 +243,7 @@ class Axter:
                 self.save()
                 self.send_message(sender, 'State saved')
 
-    def handle_desktop(self, message, sender, state):
-        if 'text' in message:
-            if message['text'] == '/cancel':
-                self.send_message(sender, 'Cancelling...')
-                state['state'] = ''
-                return
-
+    def handle_desktop(self, message, sender):
         if 'photo' in message:
             self.send_message(sender, 'Please send the image uncompressed.')
 
@@ -348,11 +336,11 @@ class Axter:
                 text=callback['message']['text'],
                 reply_markup=""
             )
-            self.request(
-                'sendDocument',
-                chat_id=self.state['owner'],
-                document=file_id,
-                caption=f'New desktop set by @{self.state["users"][user_id]["username"]}')
+            self.send_photo(
+                self.state['owner'],
+                f'images/{file_id}',
+                f'New desktop set by @{self.state["users"][user_id]["username"]}'
+            )
             self.send_message(user_id, 'Desktop set!')
 
     def save(self):
