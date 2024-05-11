@@ -21,9 +21,10 @@ QVariantMap = QMetaType.Type.QVariantMap.value
 interface = QDBusInterface('org.kde.plasmashell', '/PlasmaShell', 'org.kde.PlasmaShell')
 
 # logging
+# TODO: log to a file oh my god
 logging.basicConfig()
 logger = logging.getLogger('Axter')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 
 def set_desktop(file_path, monitor):
@@ -246,42 +247,55 @@ class Axter:
                 self.send_message(sender, 'State saved')
 
     def handle_desktop(self, message, sender):
+        # logger.debug(message)
         if 'photo' in message:
-            self.send_message(sender, 'Please send the image uncompressed.')
+            # if len(message['photo']) > 2:
+            #    self.send_message(sender, 'only a single image can be used. assuming first.')
 
-        if 'document' in message:
+            # telegram gives a list of possible sizes of the photo
+            # we *SHOULD* see which one is the biggest... but the telegram API seems to put that last, and I'm lazy
+            file = message['photo'][-1]
+        elif 'document' in message:
             if not message['document']['mime_type'] in self.accepted_types:
                 self.send_message(
                     sender,
                     f'mimetype {message["document"]["mime_type"]} unsupported.\nCurrently supported:' +
                     ', '.join(self.accepted_types))
                 return
-
-            self.request(
-                'sendMessage',
-                method='post',
-                chat_id=sender,
-                text='Great!\nNow, which monitor should it apply to?',
-                reply_markup={
-                    'inline_keyboard': [
-                        [
-                            {
-                                'text': 'Left',
-                                'callback_data': f'desktop:1:{sender}'
-                            },
-                            {
-                                'text': 'Primary',
-                                'callback_data': f'desktop:0:{sender}'
-                            },
-                            {
-                                'text': 'Right',
-                                'callback_data': f'desktop:2:{sender}'
-                            }
-                        ]
-                    ]
-                }
+            file = message['document']
+        else:
+            logger.warning('this code should not run')
+            self.send_message(
+                sender,
+                f'you somehow did something that should not happen. tell @{self.state['owner']}'
             )
-            self.state['users'][sender]['file_id'] = message['document']['file_id']
+            return
+
+        self.request(
+            'sendMessage',
+            method='post',
+            chat_id=sender,
+            text='Great!\nNow, which monitor should it apply to?',
+            reply_markup={
+                'inline_keyboard': [
+                    [
+                        {
+                            'text': 'Left',
+                            'callback_data': f'desktop:1:{sender}'
+                        },
+                        {
+                            'text': 'Primary',
+                            'callback_data': f'desktop:0:{sender}'
+                        },
+                        {
+                            'text': 'Right',
+                            'callback_data': f'desktop:2:{sender}'
+                        }
+                    ]
+                ]
+            }
+        )
+        self.state['users'][sender]['file_id'] = file['file_id']
 
     def handle_callback(self, callback):
         # for now the only thing calling this should be the handling to ban/allow specific users
