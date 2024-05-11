@@ -5,3 +5,4 @@
 /state.json
 /images/*
 /logs/*
+!.keep
