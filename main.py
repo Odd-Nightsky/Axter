@@ -3,7 +3,7 @@ import json
 import logging
 import signal
 
-from time import sleep
+from time import sleep, strftime
 from urllib.request import urlopen, Request, urlretrieve
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -21,9 +21,13 @@ QVariantMap = QMetaType.Type.QVariantMap.value
 interface = QDBusInterface('org.kde.plasmashell', '/PlasmaShell', 'org.kde.PlasmaShell')
 
 # logging
-# TODO: log to a file oh my god
-logging.basicConfig()
-logger = logging.getLogger('Axter')
+# TODO: read log level from file for easier changing
+logger = logging.getLogger(__name__)
+
+# log to file
+logger.addHandler(logging.FileHandler(strftime('logs/%Y-%m-%d.log'), 'a'))
+# log to STDERR (default behaviour for an empty stream handler)
+logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.DEBUG)
 
 
