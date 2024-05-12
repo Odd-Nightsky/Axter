@@ -446,5 +446,5 @@ if __name__ == '__main__':
             bot.handle_updates()
             sleep(1)
     except KeyboardInterrupt:
-        logger.warning('KeyboardInterrupt. shutting down')
-        bot.shutdown()
+        logger.warning('KeyboardInterrupt. priming shutdown')
+        bot.shutdown_primed = True
