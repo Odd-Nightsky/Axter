@@ -78,7 +78,7 @@ class Axter:
         :param function: Telegram API method to call.
         :param method: HTTP method (only post and get supported atm).
         :param kwargs: other arguments to be added to the request.
-        will automatically be turned into URL args or extra data.
+         will automatically be turned into URL args or extra data.
         :return: a dict containing the JSON response given from Telegram.
         """
         try:
