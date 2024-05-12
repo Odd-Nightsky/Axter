@@ -4,6 +4,7 @@ import logging
 import signal
 
 from time import sleep, strftime
+from typing import Optional
 from urllib.request import urlopen, Request, urlretrieve
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -31,7 +32,12 @@ logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.DEBUG)
 
 
-def set_desktop(file_path, monitor):
+def set_desktop(file_path: str, monitor: str) -> None:
+    """
+    sets a desktop background through QDBus.
+    :param file_path: path to the image to be set as a desktop background.
+    :param monitor: string (containing an int) of the monitor it is to be set to.
+    """
     monitor = QVariant(monitor)
     monitor.convert(QMetaType(uint))
     file_path = abspath(file_path)
@@ -41,7 +47,12 @@ def set_desktop(file_path, monitor):
 
 
 class Axter:
-    def __init__(self, api_token, state):
+    def __init__(self, api_token: str, state: dict) -> None:
+        """
+        initialise the bot.
+        :param api_token: telegram API token.
+        :param state: the bots state as a dict.
+        """
         self.state = state
         self.urlbase = 'https://api.telegram.org/bot'
         self.token = api_token
@@ -52,13 +63,24 @@ class Axter:
         # register sigterm handler so we can cleanly shut down
         signal.signal(signal.SIGTERM, self.handle_sigterm)
 
-    def handle_sigterm(self, _signum, _stack):
-        # not sure if we need either value for our use case. _ here to make IDE not yell at me
-        # handle sigterm, so we can make sure we're not in the middle of something
+    def handle_sigterm(self, _signum: object, _stack: object) -> None:
+        """
+        sigterm handler so we can make sure we shut down cleanly.
+        :param _signum: idk but if it's not here it crash.
+        :param _stack: same as above.
+        """
         logger.info('SIGTERM caught')
         self.shutdown_primed = True
 
-    def request(self, function, method='get', **kwargs):
+    def request(self, function: str, method: Optional[str] = 'get', **kwargs: object) -> dict:
+        """
+        sends an HTTP request for a Telegram API method.
+        :param function: Telegram API method to call.
+        :param method: HTTP method (only post and get supported atm).
+        :param kwargs: other arguments to be added to the request.
+        will automatically be turned into URL args or extra data.
+        :return: a dict containing the JSON response given from Telegram.
+        """
         try:
             if method == 'get':
                 if not kwargs:
@@ -76,7 +98,7 @@ class Axter:
                 data = json.dumps(kwargs).encode("utf-8")
                 headers["Content-Length"] = len(data)
                 headers["Content-Type"] = "application/json"
-                logger.debug(f'Sending request to {url}\nwith data {data}\nand headers{headers}'
+                logger.debug(f'Sending request to: {url}\nwith data: {data}\nand headers: {headers}'
                              .replace(self.token, '<TOKEN>'))
                 _request = Request(url, data, headers)
                 response = urlopen(_request)
@@ -97,15 +119,29 @@ class Axter:
             logger.warning('Remote closed connection.')
             return self.request(function, method, **kwargs)
 
-    def send_message(self, destination, text):
+    def send_message(self, destination: str, text: str) -> None:
+        """
+        shorthand for ``self.request('sendMessage',chat_id=<destination>,text=<text>)``.
+        :param destination: chat ID to send the message to.
+        :param text: message text.
+        """
         self.request('sendMessage', chat_id=destination, text=text)
 
-    def send_photo(self, destination, filepath, text):
+    def send_photo(self, destination: str, filepath: str, text: str) -> None:
+        """
+        sends a photo.
+        :param destination: chat ID to send the message to.
+        :param filepath: file path for the image to be sent.
+        :param text: text to accompany the image.
+        """
         # this will cause issues in the future but let's pray for now
         url = f'{self.urlbase}{self.token}/sendPhoto'
         post(url, data={'chat_id': destination, 'caption': text}, files={'photo': open(filepath, 'rb')})
 
-    def handle_updates(self):
+    def handle_updates(self) -> None:
+        """
+        handles getting updates from the API & responding to them.
+        """
         # shutdown if we've received a SIGTERM
         if self.shutdown_primed:
             self.shutdown()
@@ -123,7 +159,11 @@ class Axter:
             else:
                 logger.debug(f'no handler for message type {message}')
 
-    def handle_message(self, message):
+    def handle_message(self, message: dict) -> None:
+        """
+        handles incoming messages.
+        :param message: the message being handled.
+        """
         # set variables
         message = message['message']
         sender = str(message['from']['id'])
@@ -139,8 +179,7 @@ class Axter:
                 logger.info('Owner\'s first message. setting allowed')
                 self.state['users'][sender] = {
                     "username": message['from']['username'],
-                    "state": "",
-                    "stage": 0,
+                    "file_id": '',
                     "allowed": True
                 }
                 self.send_message(sender, 'Hello owner!\nAdded to allowed users.')
@@ -175,8 +214,7 @@ class Axter:
                 logger.info('User is unknown, adding to state...')
                 self.state['users'][sender] = {
                     "username": message['from']['username'],
-                    "state": "",
-                    "stage": 0,
+                    "file_id": '',
                     "allowed": False
                 }
                 self.send_message(sender, 'Hello new user!\nPlease wait until my owner confirms you.')
@@ -218,11 +256,16 @@ class Axter:
         if 'text' in message:
             self.handle_commands(message, sender)
         elif 'photo' in message or 'document' in message:
-            self.handle_desktop(message, sender)
+            self.handle_image(message, sender)
 
     # TODO: add video file support
     # TODO: add crop mode options
-    def handle_commands(self, message, sender):
+    def handle_commands(self, message: dict, sender: str) -> None:
+        """
+        handles commands.
+        :param message: message being handled.
+        :param sender: the ID of the person who sent the message.
+        """
         # handle commands
         logger.info(f'message contents: "{message["text"]}"')
         match message['text']:
@@ -250,7 +293,12 @@ class Axter:
                 self.save()
                 self.send_message(sender, 'State saved')
 
-    def handle_desktop(self, message, sender):
+    def handle_image(self, message: dict, sender: str) -> None:
+        """
+        handles images being sent to the bot.
+        :param message: message being handled.
+        :param sender: the ID of the person who sent the message.
+        """
         # logger.debug(message)
         if 'photo' in message:
             # if len(message['photo']) > 2:
@@ -301,7 +349,12 @@ class Axter:
         )
         self.state['users'][sender]['file_id'] = file['file_id']
 
-    def handle_callback(self, callback):
+    def handle_callback(self, callback: dict) -> None:
+        """
+        handles callbacks from the inline keyboard
+        only used for new users & when a monitor has been selected
+        :param callback: the callback being handled
+        """
         # for now the only thing calling this should be the handling to ban/allow specific users
         callback = callback['callback_query']
         data = callback['data']
@@ -363,13 +416,19 @@ class Axter:
             )
             self.send_message(user_id, 'Desktop set!')
 
-    def save(self):
+    def save(self) -> None:
+        """
+        saves the bot's state to ``state.json``.
+        """
         logger.info('Saving state...')
         self.state['offset'] = self.offset
         json.dump(self.state, open('state.json', 'w'), indent=2)
         logger.info('State saved.')
 
-    def shutdown(self):
+    def shutdown(self) -> None:
+        """
+        shuts down the bot.
+        """
         logger.info('Shutdown called')
         self.save()
         exit()
