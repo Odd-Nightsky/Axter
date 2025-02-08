@@ -339,10 +339,10 @@ class Axter:
                             'text': 'Primary',
                             'callback_data': f'desktop:0:{sender}'
                         },
-                        {
-                            'text': 'Right',
-                            'callback_data': f'desktop:2:{sender}'
-                        }
+                        # {
+                        #     'text': 'Right',
+                        #     'callback_data': f'desktop:2:{sender}'
+                        # }
                     ]
                 ]
             }
