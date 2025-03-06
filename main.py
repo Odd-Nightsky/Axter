@@ -277,7 +277,6 @@ class Axter:
         elif 'photo' in message or 'document' in message or 'video':
             self.handle_image(message, sender)
 
-    # TODO: add video file support
     # TODO: add crop mode options
     def handle_commands(self, message: dict, sender: str) -> None:
         """
