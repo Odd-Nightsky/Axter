@@ -45,6 +45,25 @@ def set_desktop(file_path: str, monitor: str) -> None:
     conf.convert(QMetaType(QVariantMap))
     interface.call(CallMode.Block, 'setWallpaper', 'org.kde.image', conf, monitor)
 
+def set_video_desktop(file_path: str, monitor: str) -> None:
+    """
+    sets a video desktop background through QDBus.
+    :param file_path: path to the image to be set as a desktop background.
+    :param monitor: string (containing an int) of the monitor it is to be set to.
+    """
+    monitor = QVariant(monitor)
+    monitor.convert(QMetaType(uint))
+    file_path = abspath(file_path)
+    # "how do we pass these values over the DBus?"
+    # "OH I KNOW. LET'S MAKE A DICTIONARY AND IN THERE WE STORE A STRING THAT CONTAINS A LIST OF DICTIONARIES"
+    conf = QVariant(
+        {
+            "VideoUrls": "[{\"filename\": \"file://"+file_path+"\",\"enabled\":true,\"duration\":0,\"customDuration\":0}]"
+        }
+    )
+    conf.convert(QMetaType(QVariantMap))
+    interface.call(CallMode.Block, 'setWallpaper', 'luisbocanegra.smart.video.wallpaper.reborn', conf, monitor)
+
 
 class Axter:
     def __init__(self, api_token: str, state: dict) -> None:
