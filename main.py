@@ -48,7 +48,7 @@ def set_desktop(file_path: str, monitor: str) -> None:
 def set_video_desktop(file_path: str, monitor: str) -> None:
     """
     sets a video desktop background through QDBus.
-    :param file_path: path to the image to be set as a desktop background.
+    :param file_path: path to the video to be set as a desktop background.
     :param monitor: string (containing an int) of the monitor it is to be set to.
     """
     monitor = QVariant(monitor)
@@ -76,7 +76,7 @@ class Axter:
         self.urlbase = 'https://api.telegram.org/bot'
         self.token = api_token
         self.offset = self.state['offset']
-        self.accepted_types = ['image/png', 'image/jpeg', 'image/jxl']
+        self.accepted_types = ['image/png', 'image/jpeg', 'image/jxl', 'video/mp4']
         self.shutdown_primed = False  # we use this later to see if we're about to shut down
 
         # register sigterm handler so we can cleanly shut down
@@ -274,7 +274,7 @@ class Axter:
 
         if 'text' in message:
             self.handle_commands(message, sender)
-        elif 'photo' in message or 'document' in message:
+        elif 'photo' in message or 'document' in message or 'video':
             self.handle_image(message, sender)
 
     # TODO: add video file support
@@ -326,20 +326,34 @@ class Axter:
             # telegram gives a list of possible sizes of the photo
             # we *SHOULD* see which one is the biggest... but the telegram API seems to put that last, and I'm lazy
             file = message['photo'][-1]
+            file_type = 'image'
         elif 'document' in message:
-            if not message['document']['mime_type'] in self.accepted_types:
-                self.send_message(
-                    sender,
-                    f'mimetype {message["document"]["mime_type"]} unsupported.\nCurrently supported:' +
-                    ', '.join(self.accepted_types))
-                return
+            # idk why I bothered with this lol
+            # if not message['document']['mime_type'] in self.accepted_types:
+            #     self.send_message(
+            #         sender,
+            #         f'mimetype {message["document"]["mime_type"]} unsupported.\nCurrently supported:' +
+            #         ', '.join(self.accepted_types))
+            #     return
             file = message['document']
+            if message['document']['mime_type'].startswith('image/'):
+                file_type = 'image'
+            elif message['document']['mime_type'].startswith('video/'):
+                file_type = 'video'
+            else:
+                return
+        elif 'video' in message:
+            file = message['video']
+            file_type = 'video'
         else:
             logger.warning('this code should not run')
             self.send_message(
                 sender,
                 f'you somehow did something that should not happen. tell @{self.state['owner']}'
             )
+            return
+        if file['file_size'] >= 20_000_000:  # that's 20MB btw
+            self.send_message(sender, 'File too big.\nMax file size is 20MB.')
             return
 
         self.request(
@@ -367,6 +381,8 @@ class Axter:
             }
         )
         self.state['users'][sender]['file_id'] = file['file_id']
+        self.state['users'][sender]['file_type'] = file_type
+        self.state['users'][sender]['message_id'] = message['message_id']
 
     def handle_callback(self, callback: dict) -> None:
         """
@@ -418,7 +434,10 @@ class Axter:
             file_id = self.state['users'][user_id]['file_id']
             file_info = self.request('getFile', file_id=file_id)
             urlretrieve(f'https://api.telegram.org/file/bot{self.token}/{file_info["file_path"]}', f'images/{file_id}')
-            set_desktop(f'images/{file_id}', monitor)
+            if self.state['users'][user_id]['file_type'] == 'image':
+                set_desktop(f'images/{file_id}', monitor)
+            else:
+                set_video_desktop(f'images/{file_id}', monitor)
             self.state['users'][user_id]['state'] = ''
             self.request(
                 'editMessageText',
@@ -428,11 +447,14 @@ class Axter:
                 text=callback['message']['text'],
                 reply_markup=""
             )
-            self.send_photo(
-                self.state['owner'],
-                f'images/{file_id}',
-                f'New desktop set by @{self.state["users"][user_id]["username"]}'
+            self.request(
+                'forwardMessage',
+                method='get',
+                chat_id=self.state['owner'],
+                from_chat_id=user_id,
+                message_id=self.state['users'][user_id]['message_id'],
             )
+            self.send_message(self.state['owner'], f'New desktop set by @{self.state["users"][user_id]["username"]}')
             self.send_message(user_id, 'Desktop set!')
 
     def save(self) -> None:

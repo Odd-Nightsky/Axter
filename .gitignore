@@ -6,3 +6,4 @@
 /images/*
 /logs/*
 !.keep
+__pycache__/
